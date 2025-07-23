@@ -45,10 +45,6 @@ El archivo final contiene secciones como:
 - ⚠️ **Flags de seguridad**  
 - 🧪 **Posibles secretos expuestos**  
 
-Ejemplo de salida (se ocultan valores sensibles):
-
-```text
-🧪 Posibles secretos expuestos:
 
 
 - Entrenamiento en seguridad móvil
