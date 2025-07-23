@@ -1,4 +1,4 @@
-name: 📱 Análisis Avanzado APK++
+name: 📱 Análisis Avanzado APK
 
 on:
   workflow_dispatch:
@@ -11,86 +11,102 @@ on:
 
 jobs:
   analisis_completo:
-    name: 🔍 Auditoría con ApkTool + JADX
-    runs-on: ubuntu-latest
+    name: 🔍 Auditoría Avanzada del APK
+    runs-on: ubuntu-22.04
 
     steps:
       - name: 📥 Clonar repositorio
         uses: actions/checkout@v4
 
-      - name: ⚙️ Instalar dependencias
+      - name: ⚙️ Preparar entorno
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq apktool wget unzip curl jq openjdk-17-jdk python3-pip
+          sudo apt-get install -y -qq apktool wget unzip curl jq python3-pip openjdk-17-jdk
           pip install --quiet semgrep mobsfscan
-          # Instalar JADX
-          wget -q https://github.com/skylot/jadx/releases/download/v1.4.8/jadx-1.4.8.zip
-          unzip -q jadx-1.4.8.zip -d jadx
+          wget -q https://github.com/skylot/jadx/releases/download/v1.4.7/jadx-1.4.7.zip
+          unzip -q jadx-1.4.7.zip -d jadx
+          chmod +x jadx/bin/jadx
 
-      - name: 📦 Preparar entorno
+      - name: 📦 Preparar directorios
+        run: mkdir -p decompilado jadx_out
+
+      - name: 🛠️ Decompilar APK (ApkTool + JADX)
         run: |
-          mkdir -p decompilado/jadx
-          mkdir -p decompilado/apktool
+          apktool d "${{ inputs.apk_name }}" -o decompilado -f
+          ./jadx/bin/jadx -d jadx_out "${{ inputs.apk_name }}" || echo "⚠️ JADX falló, continuando solo con ApkTool"
 
-      - name: 🛠️ Decompilar con ApkTool
-        run: apktool d "${{ inputs.apk_name }}" -o decompilado/apktool -f
-
-      - name: 🛠️ Decompilar con JADX
-        run: ./jadx/bin/jadx -d decompilado/jadx "${{ inputs.apk_name }}" || echo "⚠️ JADX falló (pero ApkTool OK)"
-
-      - name: 🧪 Iniciar resumen
-        run: echo "📄 Resumen combinado de '${{ inputs.apk_name }}'" > resumen_apk.txt
-
-      - name: 🔐 Permisos críticos y componentes exportados
+      # =======================
+      # 1. ANÁLISIS APKTOOL
+      # =======================
+      - name: 📄 Análisis con ApkTool
         run: |
-          echo -e "\n🔐 Permisos y exportados:" >> resumen_apk.txt
-          grep -i "uses-permission" decompilado/apktool/AndroidManifest.xml | \
-          grep -Ei "INTERNET|SMS|READ_CONTACTS|CALL_PHONE|CAMERA|RECORD_AUDIO|ACCESS_FINE_LOCATION|WRITE_SETTINGS" \
-          >> resumen_apk.txt || echo "✔️ No se detectaron permisos críticos" >> resumen_apk.txt
-          grep -iE 'android:exported="true"' decompilado/apktool/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ Sin componentes exportados inseguros" >> resumen_apk.txt
+          echo "📄 Resultados de ApkTool para '${{ inputs.apk_name }}'" > apktool_findings.txt
+          echo -e "\n🔐 Permisos peligrosos y componentes exportados:" >> apktool_findings.txt
+          grep -i "uses-permission" decompilado/AndroidManifest.xml | grep -Ei "INTERNET|SMS|READ_CONTACTS|CAMERA|RECORD_AUDIO|ACCESS_FINE_LOCATION" >> apktool_findings.txt || echo "✔️ Sin permisos críticos" >> apktool_findings.txt
+          grep -iE 'android:exported="true"' decompilado/AndroidManifest.xml >> apktool_findings.txt || echo "✔️ Sin componentes exportados inseguros" >> apktool_findings.txt
+          echo -e "\n⚠️ Flags inseguras:" >> apktool_findings.txt
+          grep -iE "android:debuggable|allowBackup|usesCleartextTraffic" decompilado/AndroidManifest.xml >> apktool_findings.txt || echo "✔️ Flags seguras" >> apktool_findings.txt
+          echo -e "\n🌐 URLs encontradas:" >> apktool_findings.txt
+          grep -IorE 'https?://[a-zA-Z0-9./?=_\-]+' decompilado/ | sort -u >> apktool_findings.txt || echo "✔️ Sin URLs encontradas" >> apktool_findings.txt
+          echo -e "\n🔑 Certificado:" >> apktool_findings.txt
+          keytool -printcert -jarfile "${{ inputs.apk_name }}" >> apktool_findings.txt || echo "⚠️ Certificado no leído" >> apktool_findings.txt
+          echo -e "\n🛡️ Revisión de ofuscación:" >> apktool_findings.txt
+          [ -f decompilado/proguard.cfg ] && echo "⚠️ Se detectó configuración ProGuard" >> apktool_findings.txt || echo "❗ Código posiblemente sin ofuscar" >> apktool_findings.txt
 
-      - name: 🌐 URLs y endpoints
+      # =======================
+      # 2. ANÁLISIS JADX
+      # =======================
+      - name: 📄 Análisis con JADX
         run: |
-          echo -e "\n🌐 URLs encontradas:" >> resumen_apk.txt
-          grep -IorE 'https?://[a-zA-Z0-9./?=_\-]+' decompilado/ | sort -u >> resumen_apk.txt || echo "✔️ No se encontraron URLs" >> resumen_apk.txt
+          echo "📄 Resultados de JADX para '${{ inputs.apk_name }}'" > jadx_findings.txt
+          echo -e "\n🧩 Posibles secretos en código Java:" >> jadx_findings.txt
+          grep -IorE "(apikey|secret|token|password|bearer|auth|authorization|client_id|jwt)[\"'=:\s]+[a-zA-Z0-9_\-]{8,}" jadx_out/ | sort -u >> jadx_findings.txt || echo "✔️ Sin secretos detectados" >> jadx_findings.txt
 
-      - name: 🐍 TruffleHog (Secrets)
+      # =======================
+      # 3. HERRAMIENTAS AVANZADAS
+      # =======================
+      - name: 🐍 TruffleHog – Heurísticas
         run: |
-          echo -e "\n🐍 TruffleHog:" >> resumen_apk.txt
           wget -q https://github.com/trufflesecurity/trufflehog/releases/download/v3.71.0/trufflehog_3.71.0_linux_amd64.tar.gz
           tar -xzf trufflehog_3.71.0_linux_amd64.tar.gz
           ./trufflehog filesystem --directory decompilado --no-verification --json > trufflehog.json || true
-          jq -r '.results[]? | .SourceMetadata.Data.Git.file + ": " + .Raw' trufflehog.json >> resumen_apk.txt || echo "✔️ No se detectaron secretos" >> resumen_apk.txt
 
-      - name: 🔐 Gitleaks
+      - name: 🔐 Gitleaks – Credenciales
         run: |
-          echo -e "\n🔐 Gitleaks:" >> resumen_apk.txt
           wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
           tar -xzf gitleaks_8.18.1_linux_x64.tar.gz
           ./gitleaks detect --source decompilado --no-git -v --report-format=json --report-path=gitleaks.json || true
-          jq -r '.[]? | .File + ": " + .Secret' gitleaks.json >> resumen_apk.txt || echo "✔️ No se detectaron secretos con Gitleaks" >> resumen_apk.txt
 
-      - name: 🛡️ Semgrep + MobSFScan
+      - name: 🛡️ Semgrep – Reglas Android
+        run: semgrep --quiet --config "p/mobsfscan" decompilado/ --json > semgrep.json || true
+
+      - name: 📱 MobSFScan – Auditoría completa
+        run: mobsfscan decompilado/ --json > mobsfscan.json || true
+
+      # =======================
+      # 4. RESUMEN CONSOLIDADO
+      # =======================
+      - name: 📄 Crear resumen consolidado
         run: |
-          echo -e "\n🛡️ Semgrep:" >> resumen_apk.txt
-          semgrep --quiet --config "p/mobsfscan" decompilado/ --json > semgrep.json || true
-          jq -r '.results[]? | .path + ": " + .extra.message' semgrep.json >> resumen_apk.txt || echo "✔️ No hallazgos Semgrep" >> resumen_apk.txt
+          echo "📋 RESUMEN FINAL DE '${{ inputs.apk_name }}'" > resumen_apk.txt
+          echo -e "\n===== RESULTADOS APKTOOL =====\n" >> resumen_apk.txt
+          cat apktool_findings.txt >> resumen_apk.txt
+          echo -e "\n===== RESULTADOS JADX =====\n" >> resumen_apk.txt
+          cat jadx_findings.txt >> resumen_apk.txt
+          echo -e "\n===== HERRAMIENTAS AVANZADAS =====" >> resumen_apk.txt
+          echo "TruffleHog, Gitleaks, Semgrep y MobSFScan disponibles en JSON para revisión detallada." >> resumen_apk.txt
 
-          echo -e "\n📱 MobSFScan:" >> resumen_apk.txt
-          mobsfscan --severity-threshold low decompilado/ --json > mobsfscan.json || true
-          jq -r '.results[]? | .file_path + ": " + .title' mobsfscan.json >> resumen_apk.txt || echo "✔️ No hallazgos MobSFScan" >> resumen_apk.txt
-
-      - name: 📄 Mostrar resumen
-        run: |
-          echo -e "\n📋 RESUMEN FINAL:"
-          cat resumen_apk.txt
+      - name: 📄 Mostrar resumen en pantalla
+        run: cat resumen_apk.txt
 
       - name: 💾 Subir artefactos
         uses: actions/upload-artifact@v4
         with:
-          name: resumen-avanzado-apk
+          name: analisis-avanzado-apk
           path: |
             resumen_apk.txt
+            apktool_findings.txt
+            jadx_findings.txt
             trufflehog.json
             gitleaks.json
             semgrep.json
