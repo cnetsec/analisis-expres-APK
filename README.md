@@ -1,18 +1,10 @@
-📱 Análisis Express de APK
-
-Análisis rápido y pasivo de seguridad para archivos APK
-ideal para revisiones educativas.
-<img width="400" height="400" alt="image" src="https://github.com/user-attachments/assets/cddb1336-db05-44fc-ad4c-43996b72812a" />
-
-
-
----
-
 # 📱 Análisis APK Exprés
 
 Este workflow realiza una **análisis estática exprés** de un archivo APK utilizando herramientas como `apktool` y `grep`. Ideal para revisiones rápidas, automatizadas y educativas.
 
 ---
+<img width="400" height="400" alt="image" src="https://github.com/user-attachments/assets/cddb1336-db05-44fc-ad4c-43996b72812a" />
+
 
 ## 🚀 ¿Qué hace este workflow?
 
