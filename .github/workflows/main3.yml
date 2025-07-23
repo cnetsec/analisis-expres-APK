@@ -20,25 +20,25 @@ jobs:
 
       - name: ⚙️ Instalar dependencias necesarias
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y apktool wget unzip curl jq keytool python3-pip
-          pip install semgrep mobsfscan
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apktool wget unzip curl jq python3-pip openjdk-17-jdk
+          pip install --quiet semgrep mobsfscan
 
       - name: 📦 Preparar entorno
         run: mkdir -p decompilado
 
       - name: 🛠️ Decompilar APK
-        run: |
-          apktool d "${{ inputs.apk_name }}" -o decompilado -f
+        run: apktool d "${{ inputs.apk_name }}" -o decompilado -f
 
       - name: 🧪 Iniciar resumen
-        run: |
-          echo "📄 Resumen del análisis avanzado de '${{ inputs.apk_name }}'" > resumen_apk.txt
+        run: echo "📄 Resumen del análisis avanzado de '${{ inputs.apk_name }}'" > resumen_apk.txt
 
       - name: 🔐 Permisos peligrosos y exportación de componentes
         run: |
           echo -e "\n🔐 Permisos y componentes exportados:" >> resumen_apk.txt
-          grep -i "uses-permission" decompilado/AndroidManifest.xml | grep -Ei "INTERNET|SMS|READ_CONTACTS|CAMERA" >> resumen_apk.txt || echo "✔️ No se detectaron permisos críticos" >> resumen_apk.txt
+          grep -i "uses-permission" decompilado/AndroidManifest.xml | \
+          grep -Ei "INTERNET|SMS|SEND_SMS|RECEIVE_SMS|READ_SMS|READ_CONTACTS|WRITE_CONTACTS|READ_CALL_LOG|WRITE_CALL_LOG|READ_PHONE_STATE|CALL_PHONE|RECORD_AUDIO|CAMERA|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|SYSTEM_ALERT_WINDOW|WRITE_SETTINGS|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|INSTALL_PACKAGES|REQUEST_INSTALL_PACKAGES" \
+          >> resumen_apk.txt || echo "✔️ No se detectaron permisos críticos" >> resumen_apk.txt
           grep -iE 'android:exported="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ No hay componentes exportados inseguros" >> resumen_apk.txt
 
       - name: ⚠️ Flags de seguridad
@@ -56,18 +56,18 @@ jobs:
           echo -e "\n🔑 Información del certificado:" >> resumen_apk.txt
           keytool -printcert -jarfile "${{ inputs.apk_name }}" >> resumen_apk.txt || echo "⚠️ No se pudo leer el certificado" >> resumen_apk.txt
 
-      - name: 🛡️ Revisión ProGuard/Obfuscación
+      - name: 🛡️ Revisión ProGuard/Ofuscación
         run: |
           echo -e "\n🛡️ Revisión de ofuscación:" >> resumen_apk.txt
-          [ -f decompilado/proguard.cfg ] && echo "⚠️ Se detectó configuración de ProGuard (verificar reglas)" >> resumen_apk.txt || echo "❗ No se detectó ProGuard, clases posiblemente no ofuscadas" >> resumen_apk.txt
+          [ -f decompilado/proguard.cfg ] && echo "⚠️ Se detectó configuración de ProGuard" >> resumen_apk.txt || echo "❗ No se detectó ProGuard (posible código sin ofuscar)" >> resumen_apk.txt
 
       - name: 🐍 TruffleHog – Heurísticas de secretos
         run: |
           echo -e "\n🐍 TruffleHog:" >> resumen_apk.txt
           wget -q https://github.com/trufflesecurity/trufflehog/releases/download/v3.71.0/trufflehog_3.71.0_linux_amd64.tar.gz
           tar -xzf trufflehog_3.71.0_linux_amd64.tar.gz
-          ./trufflehog filesystem --directory decompilado --no-verification --json >> trufflehog.json
-          jq '.results[]?.SourceMetadata.Data?.Git?.file + ": " + .Raw' trufflehog.json >> resumen_apk.txt || echo "✔️ No se detectaron secretos con TruffleHog" >> resumen_apk.txt
+          ./trufflehog filesystem --directory decompilado --no-verification --json > trufflehog.json || true
+          jq -r '.results[]? | .SourceMetadata.Data.Git.file + ": " + .Raw' trufflehog.json >> resumen_apk.txt || echo "✔️ No se detectaron secretos con TruffleHog" >> resumen_apk.txt
 
       - name: 🔐 Gitleaks – Credenciales
         run: |
@@ -75,19 +75,19 @@ jobs:
           wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
           tar -xzf gitleaks_8.18.1_linux_x64.tar.gz
           ./gitleaks detect --source decompilado --no-git -v --report-format=json --report-path=gitleaks.json || true
-          jq '.[] | .File + ": " + .Secret' gitleaks.json >> resumen_apk.txt || echo "✔️ No se detectaron secretos con Gitleaks" >> resumen_apk.txt
+          jq -r '.[] | .File + ": " + .Secret' gitleaks.json >> resumen_apk.txt || echo "✔️ No se detectaron secretos con Gitleaks" >> resumen_apk.txt
 
       - name: 🛡️ Semgrep – Reglas Android
         run: |
           echo -e "\n🛡️ Semgrep:" >> resumen_apk.txt
-          semgrep --config "p/mobsfscan" decompilado/ --json > semgrep.json || true
-          jq '.results[] | .path + ": " + .extra.message' semgrep.json >> resumen_apk.txt || echo "✔️ No se detectaron problemas con Semgrep" >> resumen_apk.txt
+          semgrep --quiet --config "p/mobsfscan" decompilado/ --json > semgrep.json || true
+          jq -r '.results[]? | .path + ": " + .extra.message' semgrep.json >> resumen_apk.txt || echo "✔️ No se detectaron problemas con Semgrep" >> resumen_apk.txt
 
       - name: 📱 MobSFScan – Auditoría completa
         run: |
           echo -e "\n📱 MobSFScan:" >> resumen_apk.txt
           mobsfscan decompilado/ --json > mobsfscan.json || true
-          jq '.results[]?.file_path + ": " + .title' mobsfscan.json >> resumen_apk.txt || echo "✔️ No se detectaron hallazgos con MobSFScan" >> resumen_apk.txt
+          jq -r '.results[]? | .file_path + ": " + .title' mobsfscan.json >> resumen_apk.txt || echo "✔️ No se detectaron hallazgos con MobSFScan" >> resumen_apk.txt
 
       - name: 📄 Mostrar resumen en pantalla
         run: |
