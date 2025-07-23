@@ -1,4 +1,4 @@
-name: 📱 Análisis APK Exprés (Preciso)
+name: 📱 Análisis APK Exprés (Quick)
 
 on:
   workflow_dispatch:
@@ -49,15 +49,6 @@ jobs:
           echo -e "\n⚠️ Flags de seguridad:" >> resumen_apk.txt
           grep -iE "android:debuggable|allowBackup" decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ No se encontraron flags inseguras" >> resumen_apk.txt
 
-      - name: 🧪 Posibles secretos expuestos
-        run: |
-          echo -e "\n🧪 Posibles secretos expuestos:" >> resumen_apk.txt
-          resultados=$(grep -IorE '(apikey|secret|token|password|bearer|auth|authorization|client_id|jwt)[\"'\''=: \t]+[a-zA-Z0-9_\-]{8,}' decompilado/ | sort -u | sed -E 's/([a-zA-Z0-9_\-]{4})[a-zA-Z0-9_\-]+([a-zA-Z0-9_\-]{3})/\1****\2/g' || true)
-          if [ -z "$resultados" ]; then
-            echo "✔️ No se detectaron secretos" >> resumen_apk.txt
-          else
-            echo "$resultados" >> resumen_apk.txt
-          fi
 
       - name: 📄 Mostrar resumen en pantalla
         run: |
