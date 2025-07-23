@@ -1,0 +1,67 @@
+
+name: 📱 Análisis Express de APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      apk_file:
+        description: '📦 Archivo APK a analizar'
+        required: true
+        type: string
+
+jobs:
+  analisis_apk:
+    runs-on: ubuntu-latest
+    name: 🔍 Análisis APK (ApkTool + Findings)
+
+    steps:
+      - name: 📥 Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Instalar herramientas necesarias (modo rápido)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends apktool default-jdk jq curl unzip
+
+      - name: 🧩 DECOMPILACIÓN APKTOOL
+        run: |
+          mkdir -p decompilado
+          apktool d "${{ inputs.apk_file }}" -o decompilado -f || echo "⚠️ Error al decompilar APK"
+
+      - name: 🔐 PERMISOS PELIGROSOS
+        run: |
+          echo "🔐 Permisos peligrosos:" > resumen_apk.txt
+          grep -I -oP 'android\.permission\.[A-Z_]+' decompilado/AndroidManifest.xml | LC_ALL=C sort | uniq >> resumen_apk.txt || echo "✔️ Sin permisos detectados" >> resumen_apk.txt
+
+      - name: 🌐 URLS EXPUESTAS
+        run: |
+          echo -e "\n🌐 URLs encontradas:" >> resumen_apk.txt
+          grep -I -rEo 'http[s]?://[a-zA-Z0-9./?=_-]+' decompilado/ | LC_ALL=C sort | uniq >> resumen_apk.txt || echo "✔️ No se encontraron URLs" >> resumen_apk.txt
+
+      - name: ⚠️ FLAGS DE SEGURIDAD
+        run: |
+          echo -e "\n⚠️ Flags de seguridad:" >> resumen_apk.txt
+          grep -i 'android:debuggable="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ debuggable no habilitado" >> resumen_apk.txt
+          grep -i 'android:allowBackup="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ allowBackup no habilitado" >> resumen_apk.txt
+          grep -i 'android:usesCleartextTraffic="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ usesCleartextTraffic no habilitado" >> resumen_apk.txt
+
+      - name: 🧪 STRINGS SENSIBLES
+        run: |
+          echo -e "\n🧪 Posibles secretos expuestos:" >> resumen_apk.txt
+          grep -I -iER 'apikey|secret|token|password|bearer|auth|authorization|client_id|jwt' decompilado/ | LC_ALL=C sort | uniq >> resumen_apk.txt || echo "✔️ No se detectaron secretos" >> resumen_apk.txt
+
+      - name: 🔎 CERTIFICADO APK
+        run: |
+          echo -e "\n🔎 Certificado del APK:" >> resumen_apk.txt
+          keytool -printcert -jarfile "${{ inputs.apk_file }}" >> resumen_apk.txt || echo "⚠️ No se pudo leer el certificado" >> resumen_apk.txt
+
+      - name: 📤 Mostrar resumen y guardar como artefacto
+        run: |
+          cat resumen_apk.txt
+        continue-on-error: true
+
+      - name: 📦 Guardar artefacto del análisis
+        uses: actions/upload-artifact@v4
+        with:
+          name: resumen_apk
+          path: resumen_apk.txt
