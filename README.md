@@ -1,4 +1,4 @@
-de# 📱 Análisis Express de APK
+📱 Análisis Express de APK
 
 Análisis rápido y pasivo de seguridad para archivos APK
 ideal para revisiones educativas.
