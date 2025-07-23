@@ -1,4 +1,4 @@
-name: 📱 Análisis Avanzado APK
+name: 📱 Análisis Avanzado APK++
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
       - name: 📥 Clonar repositorio
         uses: actions/checkout@v4
 
-      - name: ⚙️ Instalar dependencias necesarias
+      - name: ⚙️ Instalar dependencias
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq apktool wget unzip curl jq python3-pip openjdk-17-jdk
@@ -33,11 +33,11 @@ jobs:
       - name: 🧪 Iniciar resumen
         run: echo "📄 Resumen del análisis avanzado de '${{ inputs.apk_name }}'" > resumen_apk.txt
 
-      - name: 🔐 Permisos peligrosos y exportación de componentes
+      - name: 🔐 Permisos peligrosos y componentes exportados
         run: |
           echo -e "\n🔐 Permisos y componentes exportados:" >> resumen_apk.txt
           grep -i "uses-permission" decompilado/AndroidManifest.xml | \
-          grep -Ei "INTERNET|SMS|SEND_SMS|RECEIVE_SMS|READ_SMS|READ_CONTACTS|WRITE_CONTACTS|READ_CALL_LOG|WRITE_CALL_LOG|READ_PHONE_STATE|CALL_PHONE|RECORD_AUDIO|CAMERA|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|SYSTEM_ALERT_WINDOW|WRITE_SETTINGS|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|INSTALL_PACKAGES|REQUEST_INSTALL_PACKAGES" \
+          grep -Ei "INTERNET|SMS|READ_CONTACTS|WRITE_CONTACTS|CALL_PHONE|RECORD_AUDIO|CAMERA|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|SYSTEM_ALERT_WINDOW|WRITE_SETTINGS|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|INSTALL_PACKAGES" \
           >> resumen_apk.txt || echo "✔️ No se detectaron permisos críticos" >> resumen_apk.txt
           grep -iE 'android:exported="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ No hay componentes exportados inseguros" >> resumen_apk.txt
 
@@ -61,7 +61,7 @@ jobs:
           echo -e "\n🛡️ Revisión de ofuscación:" >> resumen_apk.txt
           [ -f decompilado/proguard.cfg ] && echo "⚠️ Se detectó configuración de ProGuard" >> resumen_apk.txt || echo "❗ No se detectó ProGuard (posible código sin ofuscar)" >> resumen_apk.txt
 
-      - name: 🐍 TruffleHog – Heurísticas de secretos
+      - name: 🐍 TruffleHog – Secretos
         run: |
           echo -e "\n🐍 TruffleHog:" >> resumen_apk.txt
           wget -q https://github.com/trufflesecurity/trufflehog/releases/download/v3.71.0/trufflehog_3.71.0_linux_amd64.tar.gz
@@ -75,26 +75,26 @@ jobs:
           wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
           tar -xzf gitleaks_8.18.1_linux_x64.tar.gz
           ./gitleaks detect --source decompilado --no-git -v --report-format=json --report-path=gitleaks.json || true
-          jq -r '.[] | .File + ": " + .Secret' gitleaks.json >> resumen_apk.txt || echo "✔️ No se detectaron secretos con Gitleaks" >> resumen_apk.txt
+          jq -r '.[]? | .File + ": " + .Secret' gitleaks.json >> resumen_apk.txt || echo "✔️ No se detectaron secretos con Gitleaks" >> resumen_apk.txt
 
-      - name: 🛡️ Semgrep – Reglas Android
+      - name: 🛡️ Semgrep – Reglas Android/Smali
         run: |
           echo -e "\n🛡️ Semgrep:" >> resumen_apk.txt
-          semgrep --quiet --config "p/mobsfscan" decompilado/ --json > semgrep.json || true
+          semgrep --quiet --severity=INFO --config "p/mobsfscan" decompilado/ --json > semgrep.json || true
           jq -r '.results[]? | .path + ": " + .extra.message' semgrep.json >> resumen_apk.txt || echo "✔️ No se detectaron problemas con Semgrep" >> resumen_apk.txt
 
-      - name: 📱 MobSFScan – Auditoría completa
+      - name: 📱 MobSFScan – Auditoría agresiva
         run: |
           echo -e "\n📱 MobSFScan:" >> resumen_apk.txt
-          mobsfscan decompilado/ --json > mobsfscan.json || true
+          mobsfscan --severity-threshold low decompilado/ --json > mobsfscan.json || true
           jq -r '.results[]? | .file_path + ": " + .title' mobsfscan.json >> resumen_apk.txt || echo "✔️ No se detectaron hallazgos con MobSFScan" >> resumen_apk.txt
 
       - name: 📄 Mostrar resumen en pantalla
         run: |
-          echo -e "\n📋 RESUMEN FINAL:"
+          echo -e "\n📋 RESUMEN FINAL (con severidad):"
           cat resumen_apk.txt
 
-      - name: 💾 Subir artefactos de resultados
+      - name: 💾 Subir artefactos
         uses: actions/upload-artifact@v4
         with:
           name: resumen-avanzado-apk
