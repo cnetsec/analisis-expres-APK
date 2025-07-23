@@ -1,5 +1,5 @@
  ╔══════════════════════════╗
-   🔎 Análisis Exprés APK    
+     🔎 Análisis Exprés APK    
 ╚══════════════════════════╝
 Este workflow realiza una **análisis estática exprés** de un archivo APK utilizando herramientas como `apktool` y `grep`. Ideal para revisiones rápidas, automatizadas y educativas.
 
