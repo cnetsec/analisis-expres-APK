@@ -2,8 +2,6 @@
 
 Este workflow realiza una **análisis estática exprés** de un archivo APK utilizando herramientas como `apktool` y `grep`. Ideal para revisiones rápidas, automatizadas y educativas.
 
----
-<img width="400" height="400" alt="image" src="https://github.com/user-attachments/assets/cddb1336-db05-44fc-ad4c-43996b72812a" />
 
 
 ## 🚀 ¿Qué hace este workflow?
