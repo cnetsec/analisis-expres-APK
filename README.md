@@ -8,46 +8,49 @@ ideal para pipelines CI/CD y revisiones educativas.
 
 ---
 
-## 🚀 ¿Qué hace?
+# 📱 Análisis APK Exprés
 
-- 📦 **Decompila** el APK usando ApkTool  
-- 🔐 Busca **permisos peligrosos**  
-- 🌐 Detecta **URLs expuestas**  
-- ⚠️ Revisa **flags de seguridad** (`debuggable`, `allowBackup`, `cleartext`)  
-- 🧪 Encuentra **secretos o credenciales** en texto  
-- 🧩 Verifica ofuscación (**ProGuard**)  
-- 🚪 Lista actividades exportadas (`exported="true"`)  
-- 🏷️ Detecta signos de entorno de CI/CD (`dev`, `test`, `internal`)  
-- 🔎 Muestra detalles del **certificado del APK**  
-- 🔍 Analiza contenido de archivos sospechosos (deep scan)
+Este workflow realiza una **análisis estática exprés** de un archivo APK utilizando herramientas como `apktool` y `grep`. Ideal para revisiones rápidas, automatizadas y educativas.
 
 ---
 
-## 🧰 Requisitos
+## 🚀 ¿Qué hace este workflow?
 
-- Archivo `.apk` válido
-- Repositorio GitHub con GitHub Actions habilitado
-
----
-
-## ⚙️ ¿Cómo se usa?
-
-1. Sube tu APK al repositorio
-2. Ejecuta el workflow manualmente desde **Actions**
-3. Obtén el archivo `resumen_apk.txt` con los hallazgos
-
----
-
-## 📄 Resultado
-
-El análisis genera:
-
-- 📄 Log resumido en `resumen_apk.txt`
-- 📤 Artefacto descargable
-- 📺 Resultado visible en pantalla
+1. Instala herramientas necesarias.
+2. Decompila el APK usando `apktool`.
+3. Busca:
+   - Permisos peligrosos.
+   - URLs embebidas.
+   - Flags inseguras (`debuggable`, `allowBackup`).
+   - Posibles secretos o tokens expuestos.
+4. Muestra un resumen en pantalla.
+5. Sube el archivo `resumen_apk.txt` como artefacto.
 
 ---
 
+## 🧩 Entradas requeridas
+
+| Nombre      | Descripción                                    | Por defecto |
+|-------------|------------------------------------------------|-------------|
+| `apk_name`  | Nombre del archivo APK (ej: `app.apk`)         | `app.apk`   |
+
+---
+
+## 📋 Salida del análisis (resumen_apk.txt)
+
+El archivo final contiene secciones como:
+
+- 🔐 **Permisos peligrosos**  
+- 🌐 **URLs encontradas**  
+- ⚠️ **Flags de seguridad**  
+- 🧪 **Posibles secretos expuestos**  
+
+Ejemplo de salida (se ocultan valores sensibles):
+
+```text
+🧪 Posibles secretos expuestos:
+decompilado/smali/com/...: token = abc1****xyz
+decompilado/res/...: apikey: 7d9d****34f
 ## 📚 Uso educativo
 
 Este análisis **no ejecuta** el APK. Es ideal para:
