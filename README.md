@@ -1,4 +1,4 @@
-# 📱 Análisis Express de APK
+de# 📱 Análisis Express de APK
 
 Análisis rápido y pasivo de seguridad para archivos APK
 ideal para pipelines CI/CD y revisiones educativas.
@@ -49,11 +49,7 @@ Ejemplo de salida (se ocultan valores sensibles):
 
 ```text
 🧪 Posibles secretos expuestos:
-decompilado/smali/com/...: token = abc1****xyz
-decompilado/res/...: apikey: 7d9d****34f
-## 📚 Uso educativo
 
-Este análisis **no ejecuta** el APK. Es ideal para:
 
 - Entrenamiento en seguridad móvil
 - Validaciones básicas de riesgo
