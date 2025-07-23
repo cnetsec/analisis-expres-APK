@@ -1,59 +1,61 @@
-name: 🔍 Análisis APK Express (Preciso)
+name: 🔍 Análisis APK Preciso
 
-on: workflow_dispatch: inputs: apk_file: description: '🗂️ Nombre del APK (ej: app.apk)' required: true default: 'app.apk' type: string
+on:
+  workflow_dispatch:
+    inputs:
+      apk_file:
+        description: '📱 Ruta del archivo APK (ej: app.apk)'
+        required: true
+        type: string
 
-jobs: apk_analysis: runs-on: ubuntu-latest name: 🔍 Análisis APK (ApkTool + Findings)
+jobs:
+  apk_analysis:
+    runs-on: ubuntu-latest
+    name: 🔍 Análisis APK (ApkTool + Findings)
 
-steps:
-  - name: 📥 Clonar repositorio
-    uses: actions/checkout@v4
+    steps:
+      - name: 📥 Clonar repositorio
+        uses: actions/checkout@v4
 
-  - name: ⚙️ Instalar herramientas necesarias
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y apktool jq curl unzip default-jdk grep
+      - name: ⚙️ Instalar herramientas necesarias
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apktool jq curl unzip default-jdk
 
-  - name: 🧉 DECOMPILACIÓN APKTOOL
-    run: |
-      mkdir -p decompilado
-      apktool d "${{ inputs.apk_file }}" -o decompilado -f || echo "⚠️ Error al decompilar APK"
-      find decompilado/ -type f -name '*.png' -o -name '*.jpg' -o -name '*.ttf' -o -name '*.so' -delete
+      - name: 🧩 Decompilación con ApkTool
+        run: |
+          mkdir -p decompilado
+          apktool d "${{ inputs.apk_file }}" -o decompilado -f || echo "⚠️ Error al decompilar APK"
 
-  - name: 🔐 PERMISOS PELIGROSOS
-    run: |
-      echo "🔐 Permisos peligrosos:" > resumen_apk.txt
-      grep -oP 'android\.permission\.[A-Z_]+' decompilado/AndroidManifest.xml | sort -u >> resumen_apk.txt || echo "✔️ Sin permisos detectados" >> resumen_apk.txt
+      - name: 🔐 Permisos peligrosos
+        run: |
+          echo "🔐 Permisos peligrosos:" > resumen_apk.txt
+          grep -oP 'android\.permission\.[A-Z_]+' decompilado/AndroidManifest.xml | sort -u >> resumen_apk.txt || echo "✔️ Sin permisos detectados" >> resumen_apk.txt
 
-  - name: 🌐 URLS EXPUESTAS
-    run: |
-      echo -e "\n🌐 URLs encontradas:" >> resumen_apk.txt
-      grep -rEo 'https?://[a-zA-Z0-9./?=_-]+' decompilado/ | grep -vE '\\.(png|jpg|jpeg|svg|woff|ttf)' | sort -u >> resumen_apk.txt || echo "✔️ No se encontraron URLs" >> resumen_apk.txt
+      - name: 🌐 URLs expuestas
+        run: |
+          echo -e "\n🌐 URLs encontradas:" >> resumen_apk.txt
+          grep -IorE 'http[s]?://[a-zA-Z0-9./?=_:-]+' decompilado/ | sort -u >> resumen_apk.txt || echo "✔️ No se encontraron URLs" >> resumen_apk.txt
 
-  - name: ⚠️ FLAGS DE SEGURIDAD
-    run: |
-      echo -e "\n⚠️ Flags de seguridad:" >> resumen_apk.txt
-      grep -i 'android:debuggable="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ debuggable no habilitado" >> resumen_apk.txt
-      grep -i 'android:allowBackup="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ allowBackup no habilitado" >> resumen_apk.txt
-      grep -i 'android:usesCleartextTraffic="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ usesCleartextTraffic no habilitado" >> resumen_apk.txt
+      - name: ⚠️ Flags de seguridad
+        run: |
+          echo -e "\n⚠️ Flags de seguridad:" >> resumen_apk.txt
+          grep -i 'android:debuggable="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ debuggable no habilitado" >> resumen_apk.txt
+          grep -i 'android:allowBackup="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ allowBackup no habilitado" >> resumen_apk.txt
+          grep -i 'android:usesCleartextTraffic="true"' decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ usesCleartextTraffic no habilitado" >> resumen_apk.txt
 
-  - name: 🪧 STRINGS SENSIBLES (Refinado)
-    run: |
-      echo -e "\n🪧 Posibles secretos expuestos:" >> resumen_apk.txt
-      grep -I -rE '(?i)(apikey|token|secret|auth|pass|key)[\s:=]{0,3}["\'']?[A-Za-z0-9\-_\.@]{10,}' decompilado/ | grep -vE '\\.(png|jpg|jpeg|ttf|so)' | sort -u | head -n 20 >> resumen_apk.txt || echo "✔️ No se detectaron secretos" >> resumen_apk.txt
+      - name: 🧪 Secretos posibles (refinado)
+        run: |
+          echo -e "\n🧪 Posibles secretos expuestos:" >> resumen_apk.txt
+          grep -IorE '(apikey|secret|token|password|bearer|auth|authorization|client_id|jwt)[\"\'=:\s]+[a-zA-Z0-9_\-]{8,}' decompilado/ | sort -u >> resumen_apk.txt || echo "✔️ No se detectaron secretos" >> resumen_apk.txt
 
-  - name: 🔎 CERTIFICADO APK
-    run: |
-      echo -e "\n🔎 Certificado del APK:" >> resumen_apk.txt
-      keytool -printcert -jarfile "${{ inputs.apk_file }}" >> resumen_apk.txt || echo "⚠️ No se pudo leer el certificado" >> resumen_apk.txt
+      - name: 🔎 Certificado APK
+        run: |
+          echo -e "\n🔎 Certificado del APK:" >> resumen_apk.txt
+          keytool -printcert -jarfile "${{ inputs.apk_file }}" >> resumen_apk.txt || echo "⚠️ No se pudo leer el certificado" >> resumen_apk.txt
 
-  - name: 📃 Mostrar resumen en pantalla (muestras)
-    run: |
-      echo "\n🔹 Fragmento del resumen:"
-      head -n 40 resumen_apk.txt
-
-  - name: 📂 Subir resumen como artefacto
-    uses: actions/upload-artifact@v4
-    with:
-      name: resumen_apk
-      path: resumen_apk.txt
-
+      - name: 📦 Guardar artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: resumen_apk
+          path: resumen_apk.txt
