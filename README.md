@@ -1,6 +1,7 @@
 # 📱 Análisis Express de APK
 
-Análisis rápido y pasivo de seguridad para archivos APK, ideal para pipelines CI/CD y revisiones educativas.
+Análisis rápido y pasivo de seguridad para archivos APK
+ideal para pipelines CI/CD y revisiones educativas.
 <img width="400" height="400" alt="image" src="https://github.com/user-attachments/assets/cddb1336-db05-44fc-ad4c-43996b72812a" />
 
 
