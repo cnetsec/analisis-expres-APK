@@ -7,7 +7,7 @@ jobs:
     parameters:
       apk_name:
         type: string
-        default: "app.apk"
+        default: "InsecureBankv2.apk"
     steps:
       - checkout
 
