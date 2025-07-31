@@ -20,7 +20,7 @@ jobs:
           command: mkdir -p decompilado jadx_out
       - run:
           name: 🛠️ Decompilar APK con Apktool
-          command: apktool d "app.apk" -o decompilado -f
+          command: apktool d "InsecureBankv2.apk" -o decompilado -f
       - run:
           name: 🧩 Decompilar APK con JADX
           command: $HOME/jadx/bin/jadx "InsecureBankv2.apk" -d jadx_out || echo "⚠️ Error al decompilar con JADX"
