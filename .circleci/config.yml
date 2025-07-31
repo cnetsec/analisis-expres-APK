@@ -1,8 +1,5 @@
 version: 2.1
 
-orbs:
-  python: circleci/python@2.3.0
-
 jobs:
   analisis_completo:
     docker:
@@ -72,12 +69,15 @@ jobs:
             echo -e "\n📋 RESUMEN FINAL:"
             cat resumen_avanzado.txt
 
-      - persist_to_workspace:
-          root: .
-          paths:
-            - resumen_avanzado.txt
-            - semgrep.json
-            - mobsfscan.json
+      - store_artifacts:
+          path: resumen_avanzado.txt
+          destination: resumen_avanzado.txt
+      - store_artifacts:
+          path: semgrep.json
+          destination: semgrep.json
+      - store_artifacts:
+          path: mobsfscan.json
+          destination: mobsfscan.json
 
 workflows:
   version: 2
