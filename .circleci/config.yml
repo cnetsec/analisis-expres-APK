@@ -4,22 +4,25 @@ jobs:
   analisis_completo:
     docker:
       - image: cimg/base:stable
-    parameters:
-      apk_name:
-        type: string
-        default: "InsecureBankv2.apk"
     steps:
       - checkout
+      - run:
+          name: Atualizar para o último commit
+          command: |
+            git fetch origin << pipeline.git.branch >>
+            git checkout origin/<< pipeline.git.branch >>
+            echo "📌 Usando commit: $(git rev-parse HEAD)"
 
       - run:
           name: 📂 Verificar existencia del APK
           command: |
-            echo "🔍 Buscando el archivo APK '<< parameters.apk_name >>'..."
-            if [ ! -f "<< parameters.apk_name >>" ]; then
+            APK_NAME="InsecureBankv2.apk"
+            echo "🔍 Buscando el archivo APK '${APK_NAME}'..."
+            if [ ! -f "${APK_NAME}" ]; then
               echo "❌ APK no encontrado en el repositorio."
               exit 1
             fi
-            echo "✅ APK '<< parameters.apk_name >>' encontrado."
+            echo "✅ APK '${APK_NAME}' encontrado."
 
       - run:
           name: 🛠 Instalar dependencias
@@ -33,14 +36,13 @@ jobs:
       - run:
           name: 🧩 Decompilar APK (JADX)
           command: |
-            echo "🧩 Decompilando el APK..."
             mkdir -p jadx_out
-            /opt/jadx/bin/jadx "<< parameters.apk_name >>" -d jadx_out || echo "⚠️ Error al decompilar con JADX"
+            /opt/jadx/bin/jadx "InsecureBankv2.apk" -d jadx_out || echo "⚠️ Error al decompilar con JADX"
 
       - run:
           name: 🔎 Análisis rápido (Manifest + Smali)
           command: |
-            echo "📄 Resumen del análisis de '<< parameters.apk_name >>'" > resumen_avanzado.txt
+            echo "📄 Resumen del análisis de 'InsecureBankv2.apk'" > resumen_avanzado.txt
             echo -e "\n🔐 Permisos críticos:" >> resumen_avanzado.txt
             grep -i "uses-permission" jadx_out/resources/AndroidManifest.xml | \
             grep -Ei "INTERNET|SMS|CONTACTS|CALL|CAMERA|LOCATION|AUDIO|STORAGE" >> resumen_avanzado.txt || echo "✔️ Ningún permiso crítico detectado" >> resumen_avanzado.txt
@@ -83,5 +85,4 @@ workflows:
   version: 2
   analisis_apk:
     jobs:
-      - analisis_completo:
-          apk_name: "app.apk"
+      - analisis_completo
