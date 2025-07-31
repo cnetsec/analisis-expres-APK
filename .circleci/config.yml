@@ -1,91 +1,117 @@
-version: 2.1
+name: 📱 Análisis APK Completo
+
+on:
+  workflow_dispatch:
+    inputs:
+      apk_name:
+        description: '🗂️ Nombre del archivo APK (ej: app.apk)'
+        required: true
+        default: 'app.apk'
+        type: string
 
 jobs:
-  analisis_completo:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-
-      - run:
-          name: 📌 Atualizar para o último commit
-          command: |
-            git fetch origin << pipeline.git.branch >>
-            git checkout origin/<< pipeline.git.branch >>
-            echo "📌 Usando commit: $(git rev-parse HEAD)"
-
-      - run:
-          name: 📂 Verificar existencia del APK
-          command: |
-            APK_NAME="app.apk"
-            echo "🔍 Buscando el archivo APK '${APK_NAME}'..."
-            if [ ! -f "${APK_NAME}" ]; then
-              echo "❌ APK no encontrado en el repositorio."
-              exit 1
-            fi
-            echo "✅ APK '${APK_NAME}' encontrado."
-
-      - run:
-          name: 🛠 Instalar dependencias (JADX, Semgrep, MobSFScan)
-          command: |
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq openjdk-17-jdk unzip wget python3 python3-pip jq
-            wget -q https://github.com/skylot/jadx/releases/download/v1.4.7/jadx-1.4.7.zip
-            mkdir -p $HOME/jadx
-            unzip -o jadx-1.4.7.zip -d $HOME/jadx
-            pip3 install --quiet semgrep mobsfscan
-
-      - run:
-          name: 🧩 Decompilar APK (JADX)
-          command: |
-            echo "🧩 Decompilando el APK..."
-            mkdir -p jadx_out
-            $HOME/jadx/bin/jadx "app.apk" -d jadx_out || echo "⚠️ Error al decompilar con JADX"
-
-      - run:
-          name: 🔎 Análisis rápido (Manifest + Smali)
-          command: |
-            echo "📄 Resumen del análisis de 'app.apk'" > resumen_avanzado.txt
-            echo -e "\n\033[1;33m🔐 Permisos críticos:\033[0m" >> resumen_avanzado.txt
-            grep -i "uses-permission" jadx_out/resources/AndroidManifest.xml | \
-            grep -Ei "INTERNET|SMS|CONTACTS|CALL|CAMERA|LOCATION|AUDIO|STORAGE" >> resumen_avanzado.txt || echo "✔️ Ningún permiso crítico detectado" >> resumen_avanzado.txt
-            echo -e "\n\033[1;31m⚠️ Flags inseguras:\033[0m" >> resumen_avanzado.txt
-            grep -iE "android:debuggable|allowBackup|usesCleartextTraffic" jadx_out/resources/AndroidManifest.xml >> resumen_avanzado.txt || echo "✔️ Flags seguras" >> resumen_avanzado.txt
-            echo -e "\n\033[1;34m🌐 URLs encontradas:\033[0m" >> resumen_avanzado.txt
-            grep -IorE 'https?://[a-zA-Z0-9./?=_\-]+' jadx_out/ | sort -u >> resumen_avanzado.txt || echo "✔️ No se detectaron URLs" >> resumen_avanzado.txt
-
-      - run:
-          name: 🛡️ Análisis Semgrep
-          command: |
-            echo -e "\n\033[1;36m🛡️ Semgrep (p/mobsfscan):\033[0m" >> resumen_avanzado.txt
-            semgrep --quiet --config=p/mobsfscan jadx_out --json > semgrep.json || true
-            jq -r '.results[]? | .path + ": " + .extra.message' semgrep.json >> resumen_avanzado.txt || echo "✔️ Sin hallazgos relevantes" >> resumen_avanzado.txt
-
-      - run:
-          name: 📱 Análisis MobSFScan
-          command: |
-            echo -e "\n\033[1;35m📱 MobSFScan:\033[0m" >> resumen_avanzado.txt
-            mobsfscan jadx_out --json > mobsfscan.json || true
-            jq -r '.results[]? | .file_path + ": " + .title' mobsfscan.json >> resumen_avanzado.txt || echo "✔️ Sin hallazgos relevantes" >> resumen_avanzado.txt
-
-      - run:
-          name: 📄 Mostrar resumen
-          command: |
-            echo -e "\n\033[1;32m📋 RESUMEN FINAL:\033[0m"
-            cat resumen_avanzado.txt
-
-      - store_artifacts:
-          path: resumen_avanzado.txt
-          destination: resumen_avanzado.txt
-      - store_artifacts:
-          path: semgrep.json
-          destination: semgrep.json
-      - store_artifacts:
-          path: mobsfscan.json
-          destination: mobsfscan.json
-
-workflows:
-  version: 2
   analisis_apk:
-    jobs:
-      - analisis_completo
+    name: 🔍 Análisis completo del APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Instalar dependencias necesarias
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y apktool openjdk-17-jdk wget unzip grep python3 python3-pip jq
+          wget -q https://github.com/skylot/jadx/releases/download/v1.4.7/jadx-1.4.7.zip
+          mkdir -p $HOME/jadx
+          unzip -o jadx-1.4.7.zip -d $HOME/jadx
+          pip3 install --no-cache-dir semgrep mobsfscan
+
+      - name: 📦 Preparar entorno
+        run: mkdir -p decompilado jadx_out
+
+      - name: 🛠️ Decompilar APK con Apktool
+        run: |
+          apktool d "${{ inputs.apk_name }}" -o decompilado -f
+
+      - name: 🧩 Decompilar APK con JADX
+        run: |
+          $HOME/jadx/bin/jadx "${{ inputs.apk_name }}" -d jadx_out || echo "⚠️ Error al decompilar con JADX"
+
+      - name: 🧪 Iniciar resumen de análisis
+        run: |
+          echo "📄 Resumen del análisis de '${{ inputs.apk_name }}'" > resumen_apk.txt
+
+      # --- Greps OWASP Mobile Top 10 ---
+      - name: 🔐 Permisos peligrosos
+        run: |
+          echo -e "\n🔐 Permisos peligrosos:" >> resumen_apk.txt
+          grep -i "uses-permission" decompilado/AndroidManifest.xml | \
+          grep -Ei "INTERNET|SMS|READ_CONTACTS|CALL|CAMERA|RECORD_AUDIO|WRITE_EXTERNAL_STORAGE|READ_EXTERNAL_STORAGE|ACCESS_FINE_LOCATION" >> resumen_apk.txt || echo "✔️ No se detectaron permisos críticos" >> resumen_apk.txt
+
+      - name: ⚠️ Flags de seguridad
+        run: |
+          echo -e "\n⚠️ Flags de seguridad:" >> resumen_apk.txt
+          grep -iE "android:debuggable|allowBackup|usesCleartextTraffic" decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ No se encontraron flags inseguras" >> resumen_apk.txt
+
+      - name: 🌐 URLs encontradas
+        run: |
+          echo -e "\n🌐 URLs encontradas:" >> resumen_apk.txt
+          grep -IorE 'https?://[a-zA-Z0-9./?=_\-]+' decompilado/ | sort -u >> resumen_apk.txt || echo "✔️ No se encontraron URLs" >> resumen_apk.txt
+
+      - name: 🔑 Búsqueda de claves/API Keys
+        run: |
+          echo -e "\n🔑 Claves/API Keys potenciales:" >> resumen_apk.txt
+          grep -IorE "(api_key|secret|token|password) ?= ?['\"]?[a-zA-Z0-9_\-]+" jadx_out/ >> resumen_apk.txt || echo "✔️ No se detectaron claves" >> resumen_apk.txt
+
+      - name: 🧮 Criptografía insegura
+        run: |
+          echo -e "\n🧮 Uso de criptografía insegura:" >> resumen_apk.txt
+          grep -IorE "MD5|DES|AES/ECB|RC4" jadx_out/ >> resumen_apk.txt || echo "✔️ No se detectó criptografía insegura" >> resumen_apk.txt
+
+      - name: 📤 Componentes exportados
+        run: |
+          echo -e "\n📤 Componentes exportados:" >> resumen_apk.txt
+          grep -i "android:exported=\"true\"" decompilado/AndroidManifest.xml >> resumen_apk.txt || echo "✔️ Ningún componente exportado detectado" >> resumen_apk.txt
+
+      - name: 🌐 WebView inseguro
+        run: |
+          echo -e "\n🌐 Uso inseguro de WebView:" >> resumen_apk.txt
+          grep -IorE "setJavaScriptEnabled|addJavascriptInterface" jadx_out/ >> resumen_apk.txt || echo "✔️ No se detectó uso inseguro de WebView" >> resumen_apk.txt
+
+      - name: 🪵 Logs sensibles
+        run: |
+          echo -e "\n🪵 Uso de logs sensibles:" >> resumen_apk.txt
+          grep -IorE "Log\.d|Log\.v|printStackTrace" jadx_out/ >> resumen_apk.txt || echo "✔️ No se detectó logging sensible" >> resumen_apk.txt
+
+      - name: 🔒 Certificados inseguros
+        run: |
+          echo -e "\n🔒 Uso de certificados inseguros:" >> resumen_apk.txt
+          grep -IorE "TrustAllCerts|HostnameVerifier" jadx_out/ >> resumen_apk.txt || echo "✔️ No se detectaron certificados inseguros" >> resumen_apk.txt
+
+      # --- Semgrep y MobSFScan ---
+      - name: 🛡️ Análisis Semgrep
+        run: |
+          echo -e "\n🛡️ Semgrep (p/mobsfscan):" >> resumen_apk.txt
+          semgrep --quiet --config=p/mobsfscan jadx_out --json > semgrep.json || true
+          jq -r '.results[]? | .path + ": " + .extra.message' semgrep.json >> resumen_apk.txt || echo "✔️ Sin hallazgos relevantes" >> resumen_apk.txt
+
+      - name: 📱 Análisis MobSFScan
+        run: |
+          echo -e "\n📱 MobSFScan:" >> resumen_apk.txt
+          mobsfscan jadx_out --json > mobsfscan.json || true
+          jq -r '.results[]? | .file_path + ": " + .title' mobsfscan.json >> resumen_apk.txt || echo "✔️ Sin hallazgos relevantes" >> resumen_apk.txt
+
+      - name: 📄 Mostrar resumen
+        run: |
+          echo -e "\n📋 RESUMEN FINAL:"
+          cat resumen_apk.txt
+
+      - name: 💾 Subir artefacto de resultados
+        uses: actions/upload-artifact@v4
+        with:
+          name: analisis-apk-completo
+          path: |
+            resumen_apk.txt
+            semgrep.json
+            mobsfscan.json
