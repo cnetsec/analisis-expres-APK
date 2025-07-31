@@ -6,17 +6,11 @@ jobs:
       - image: cimg/base:stable
     steps:
       - checkout
-      - run:
-          name: Atualizar para o último commit
-          command: |
-            git fetch origin << pipeline.git.branch >>
-            git checkout origin/<< pipeline.git.branch >>
-            echo "📌 Usando commit: $(git rev-parse HEAD)"
 
       - run:
           name: 📂 Verificar existencia del APK
           command: |
-            APK_NAME="InsecureBankv2.apk"
+            APK_NAME="app.apk"
             echo "🔍 Buscando el archivo APK '${APK_NAME}'..."
             if [ ! -f "${APK_NAME}" ]; then
               echo "❌ APK no encontrado en el repositorio."
@@ -28,7 +22,7 @@ jobs:
           name: 🛠 Instalar dependencias
           command: |
             sudo apt-get update -qq
-            sudo apt-get install -y -qq openjdk-17-jdk unzip wget python3 python3-pip jq git
+            sudo apt-get install -y -qq openjdk-17-jdk unzip wget python3 python3-pip jq
             wget -q https://github.com/skylot/jadx/releases/download/v1.4.7/jadx-1.4.7.zip
             unzip -o jadx-1.4.7.zip -d /opt/jadx
             pip3 install --quiet semgrep mobsfscan
@@ -37,12 +31,12 @@ jobs:
           name: 🧩 Decompilar APK (JADX)
           command: |
             mkdir -p jadx_out
-            /opt/jadx/bin/jadx "InsecureBankv2.apk" -d jadx_out || echo "⚠️ Error al decompilar con JADX"
+            /opt/jadx/bin/jadx "app.apk" -d jadx_out || echo "⚠️ Error al decompilar con JADX"
 
       - run:
           name: 🔎 Análisis rápido (Manifest + Smali)
           command: |
-            echo "📄 Resumen del análisis de 'InsecureBankv2.apk'" > resumen_avanzado.txt
+            echo "📄 Resumen del análisis de 'app.apk'" > resumen_avanzado.txt
             echo -e "\n🔐 Permisos críticos:" >> resumen_avanzado.txt
             grep -i "uses-permission" jadx_out/resources/AndroidManifest.xml | \
             grep -Ei "INTERNET|SMS|CONTACTS|CALL|CAMERA|LOCATION|AUDIO|STORAGE" >> resumen_avanzado.txt || echo "✔️ Ningún permiso crítico detectado" >> resumen_avanzado.txt
